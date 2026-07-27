@@ -1,0 +1,43 @@
+# =============================================================================
+# Model / LLM provider configuration
+# =============================================================================
+model:
+  # "custom" = any OpenAI-compatible endpoint that isn't one of Hermes'
+  # named providers. This is what lets us point at our own LiteLLM gateway
+  # instead of talking to OpenRouter/Anthropic/etc. directly.
+  provider: "custom"
+
+  # LiteLLM's address inside the Tailscale network (see LiteLLM.md in the vault).
+  base_url: "http://nodo1.tayra-manta.ts.net:4000"
+
+  # LiteLLM virtual key for THIS agent specifically — never a shared master key.
+  # Replace with the real key when copying this file to the node; this
+  # example file with a placeholder is the only version that goes into Git.
+  api_key: "sk-REPLACE-WITH-WOLVERINE-VIRTUAL-KEY"
+
+  # Default model Wolverine uses, addressed exactly as LiteLLM exposes it
+  # (see the model catalog in litellm_config.yaml).
+  default: "openrouter/deepseek/deepseek-v4-pro"
+
+# =============================================================================
+# Terminal / code execution backend
+# =============================================================================
+terminal:
+  # "ssh" = run commands on a separate remote host instead of touching this
+  # container's own filesystem or the Docker socket. Here, that "remote
+  # host" is the sandbox sidecar container defined in docker-compose.yml.
+  backend: "ssh"
+
+  # Working directory on the REMOTE side (inside the sandbox container).
+  cwd: "/home/sandbox"
+
+  # Docker Compose resolves "sandbox" to the sandbox container's internal
+  # IP automatically — no need for a real hostname or exposed port.
+  ssh_host: "sandbox"
+  ssh_user: "sandbox"
+  ssh_port: 22
+
+  # Private half of the key pair baked into the sandbox image's
+  # authorized_keys. Lives inside /opt/data (the persistent volume), never
+  # in Git.
+  ssh_key: "/opt/data/wolverine-sandbox"

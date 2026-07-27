@@ -1,0 +1,68 @@
+# Compose project name — used as a prefix for the default network and
+# container names Docker Compose creates automatically.
+name: wolverine
+
+services:
+  gateway:
+    # Pulled from the private registry on nodo1 — built and pushed earlier,
+    # not built here. The node only ever does a `pull`, never a `build`.
+    image: nodo1.tayra-manta.ts.net:5000/hermes-agent:v1
+    container_name: wolverine-gateway
+    restart: unless-stopped
+
+    # No network_mode: host here — the official Hermes compose file uses it,
+    # but this stack doesn't need it: Slack Socket Mode and calls to LiteLLM
+    # are both outbound-only, so the default Docker bridge network is enough.
+    # Also: host networking would violate this homelab's R9 rule.
+
+    # Bind mount to a real path on nodo2's filesystem (not an opaque Docker
+    # volume) so it can be inspected/edited directly via SSH or VS Code
+    # Remote-SSH. This is Hermes' entire persistent state: config.yaml,
+    # SOUL.md, .env, sessions, memories — everything lives under /opt/data.
+    volumes:
+      - /home/nodo2/agents/wolverine/hermes-data:/opt/data
+
+    # Hermes' entrypoint remaps its internal "hermes" user to this uid/gid,
+    # so files written into the bind-mounted volume are owned by a normal,
+    # known user on the host instead of some arbitrary container-internal id.
+    environment:
+      - HERMES_UID=10000
+      - HERMES_GID=10000
+
+    # Resource limits (R10) — an agent stuck in a loop can't take down
+    # the whole node.
+    mem_limit: 2g
+    cpus: 1.5
+    pids_limit: 300
+
+    # Starts the messaging gateway (Slack, etc.) instead of an interactive
+    # CLI session — this is what makes it run unattended as a service.
+    command: ["gateway", "run"]
+
+    # Make sure the sandbox exists before the gateway starts, since the
+    # gateway's terminal tool depends on being able to reach it.
+    depends_on:
+      - sandbox
+
+  sandbox:
+    # Built earlier: Python 3.13 + uv + Node 26 + a hardened sshd.
+    image: nodo1.tayra-manta.ts.net:5000/hermes-sandbox:v1
+    container_name: wolverine-sandbox
+    restart: unless-stopped
+
+    # No ports published to the host at all. The gateway reaches this
+    # container over the private network Compose creates for this project,
+    # using the service name "sandbox" as the hostname — nothing here is
+    # reachable from the LAN, from Tailscale, or from anywhere but the
+    # gateway container itself.
+
+    # Blocks privilege escalation via setuid/setgid binaries inside the
+    # container. Not using cap_drop: [ALL] here (unlike the rest of the
+    # lab's agent containers) because sshd genuinely needs some root
+    # capabilities to bind port 22 and spawn the "sandbox" user
+    security_opt:
+      - no-new-privileges:true
+
+    mem_limit: 1g
+    cpus: 1
+    pids_limit: 200
