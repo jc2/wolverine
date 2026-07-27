@@ -26,8 +26,8 @@ services:
     # so files written into the bind-mounted volume are owned by a normal,
     # known user on the host instead of some arbitrary container-internal id.
     environment:
-      - HERMES_UID=10000
-      - HERMES_GID=10000
+      - HERMES_UID=1000
+      - HERMES_GID=1000
 
     # Resource limits (R10) — an agent stuck in a loop can't take down
     # the whole node.
