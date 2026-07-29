@@ -41,3 +41,71 @@ terminal:
   # authorized_keys. Lives inside /opt/data (the persistent volume), never
   # in Git.
   ssh_key: "/opt/data/wolverine-sandbox"
+
+display:
+  tool_progress: all
+_config_version: 33
+plugins:
+  enabled: []
+platforms:
+  slack:
+    enabled: true
+    home_channel:
+      platform: slack
+      chat_id: D0BKU9VFL2Z
+      name: D0BKU9VFL2Z
+      user_id: U0BKG927C8G
+      scope_id: T0BJ6J6VA6T
+onboarding:
+  seen:
+    busy_input_prompt: true
+
+# --- Plane MCP server (added 2026-07-29, POC CeronSoft Stage 0.5) ---
+# Runs as a stdio subprocess of the gateway. uvx ships with the hermes-agent
+# image; the uv cache persists under /opt/data (HOME of the hermes user).
+# PLANE_API_KEY is interpolated from .env (mode 600) so no secret lands here.
+# The include list is deliberate: the server exposes 139 tools, and registering
+# all of them would flood the context on every turn. It also acts as a safety
+# guard - every delete_* and workspace-mutating tool stays unreachable.
+mcp_servers:
+  plane:
+    command: uvx
+    args: ["plane-mcp-server==0.2.10", "stdio"]
+    env:
+      PLANE_API_KEY: "${PLANE_API_KEY}"
+      PLANE_WORKSPACE_SLUG: "camilo-home-lab"
+      PLANE_BASE_URL: "http://100.115.28.75:3000"
+    enabled: true
+    timeout: 120
+    connect_timeout: 90
+    tools:
+      resources: false
+      prompts: false
+      include:
+        # Identity and discovery
+        - get_me
+        # list_projects: omitted - HTTP 404 on Plane CE v1.3.1 (the raw
+        # REST route works, the MCP calls a newer path). Put the CeronSoft
+        # project UUID in SOUL.md instead.
+        - list_states
+        - get_pql_reference
+        # Read work items
+        - list_work_items
+        - retrieve_work_item
+        - retrieve_work_item_by_identifier
+        - search_work_items
+        # Create and update
+        - create_work_item
+        - update_work_item
+        # Assignment
+        # get_project_members: omitted - same 404 as list_projects.
+        # Member UUIDs must live in SOUL.md; manage_work_item_assignee
+        # itself works fine with a known UUID.
+        - manage_work_item_assignee
+        # Comments
+        - create_work_item_comment
+        - list_work_item_comments
+        # NOTE: relation/dependency tools are intentionally absent.
+        # Plane CE v1.3.1 exposes no relation endpoints on the public v1 API
+        # (verified 2026-07-29: every relation path returns HTTP 404), so
+        # registering them would only teach the agent a dead end.
